@@ -1,4 +1,5 @@
 const NAV_ITEMS = [
+  { key: 'dashboard', icon: '📊', label: 'แดชบอร์ด' },
   { key: 'library', icon: '🗂️', label: 'คลัง' },
   { key: 'favorites', icon: '★', label: 'รายการโปรด' },
   { key: 'trash', icon: '🗑️', label: 'ถังขยะ' },

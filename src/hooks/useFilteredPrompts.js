@@ -16,13 +16,14 @@ export function getAllTags(prompts) {
 }
 
 export function useFilteredPrompts(prompts, filters) {
-  const { search, categoryId, tags, quick, sort } = filters
+  const { search, categoryId, tags, quick, sort, status } = filters
 
   return useMemo(() => {
     const q = search.trim().toLowerCase()
 
     let result = prompts.filter((p) => {
       if (categoryId && p.category_id !== categoryId) return false
+      if (status && (p.status ?? 'draft') !== status) return false
       if (quick === 'favorite' && !p.is_favorite) return false
       if (quick === 'pinned' && !p.is_pinned) return false
       if (tags.length > 0) {
@@ -50,5 +51,5 @@ export function useFilteredPrompts(prompts, filters) {
     // 'default' keeps the server order (pinned first, then most recently updated)
 
     return result
-  }, [prompts, search, categoryId, tags, quick, sort])
+  }, [prompts, search, categoryId, tags, quick, sort, status])
 }

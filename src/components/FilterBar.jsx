@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { SORT_OPTIONS } from '../hooks/useFilteredPrompts'
+import { STATUS_OPTIONS } from '../lib/constants'
 
 const TAG_PREVIEW_COUNT = 10
 
@@ -14,6 +15,8 @@ export default function FilterBar({
   onToggleTag,
   quick,
   onQuickChange,
+  status,
+  onStatusChange,
   sort,
   onSortChange,
   onClearAll,
@@ -74,6 +77,19 @@ export default function FilterBar({
                 {c.name}
               </>
             }
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center mb-2.5">
+        <span className="text-xs text-[var(--ink-soft)] mr-0.5">สถานะ:</span>
+        {STATUS_OPTIONS.map((s) => (
+          <FilterChip
+            key={s.value}
+            active={status === s.value}
+            onClick={() => onStatusChange(status === s.value ? null : s.value)}
+            label={s.label}
+            small
           />
         ))}
       </div>

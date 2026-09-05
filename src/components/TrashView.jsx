@@ -1,13 +1,24 @@
-import { useDeletedPromptsQuery, useRestorePrompt } from '../hooks/usePrompts'
+import { useState } from 'react'
+import { useDeletedPromptsQuery, useRestorePrompt, useHardDeletePrompt } from '../hooks/usePrompts'
+import ConfirmDialog from './ConfirmDialog'
 
 export default function TrashView({ showToast }) {
   const deletedQuery = useDeletedPromptsQuery()
   const restorePrompt = useRestorePrompt()
+  const hardDeletePrompt = useHardDeletePrompt()
   const deleted = deletedQuery.data ?? []
+  const [confirmTarget, setConfirmTarget] = useState(null)
 
   async function handleRestore(prompt) {
-    await restorePrompt.mutateAsync(prompt.id)
+    await restorePrompt.mutateAsync(prompt)
     showToast(`กู้คืน "${prompt.title}" แล้ว`)
+  }
+
+  async function handleConfirmHardDelete() {
+    const target = confirmTarget
+    await hardDeletePrompt.mutateAsync(target)
+    showToast(`ลบ "${target.title}" ถาวรแล้ว`)
+    setConfirmTarget(null)
   }
 
   return (
@@ -16,7 +27,7 @@ export default function TrashView({ showToast }) {
         <span className="eyebrow font-mono">TRASH</span>
         <h2 className="font-display text-2xl font-medium mt-3">ถังขยะ</h2>
         <p className="text-sm text-[var(--ink-soft)] mt-1">
-          พรอมต์ที่ลบจะอยู่ที่นี่ กู้คืนได้ตลอดเวลา — ไม่มีการลบถาวรอัตโนมัติ
+          พรอมต์ที่ลบจะอยู่ที่นี่ กู้คืนได้ตลอดเวลา หรือลบถาวรถ้าไม่ต้องการเก็บไว้แล้ว
         </p>
       </div>
 
@@ -38,13 +49,33 @@ export default function TrashView({ showToast }) {
                 <p className="text-sm font-medium">{p.title}</p>
                 <p className="text-xs text-[var(--ink-soft)] mt-0.5 line-clamp-1">{p.content}</p>
               </div>
-              <button className="btn btn-sm shrink-0" onClick={() => handleRestore(p)} disabled={restorePrompt.isPending}>
-                กู้คืน
-              </button>
+              <div className="flex gap-2 shrink-0">
+                <button className="btn btn-sm" onClick={() => handleRestore(p)} disabled={restorePrompt.isPending}>
+                  กู้คืน
+                </button>
+                <button
+                  className="btn btn-sm btn-stamp"
+                  onClick={() => setConfirmTarget(p)}
+                  disabled={hardDeletePrompt.isPending}
+                >
+                  ลบถาวร
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmTarget)}
+        title="ลบถาวร?"
+        description={confirmTarget ? `"${confirmTarget.title}" จะถูกลบทิ้งจริง กู้คืนไม่ได้อีก รวมถึงประวัติเวอร์ชันและรูปภาพที่แนบไว้` : ''}
+        confirmLabel="ลบถาวร"
+        danger
+        busy={hardDeletePrompt.isPending}
+        onConfirm={handleConfirmHardDelete}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   )
 }

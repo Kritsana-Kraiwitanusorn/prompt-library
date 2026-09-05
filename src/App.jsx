@@ -20,15 +20,17 @@ import Toolbar from './components/Toolbar'
 import Sidebar from './components/Sidebar'
 import SettingsView from './components/SettingsView'
 import TrashView from './components/TrashView'
+import DashboardView from './components/DashboardView'
 import FilterBar from './components/FilterBar'
 import PromptCard from './components/PromptCard'
 import { PromptGridSkeleton } from './components/PromptCardSkeleton'
 import PromptFormModal from './components/PromptFormModal'
+import PromptPreviewModal from './components/PromptPreviewModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import VersionHistoryModal from './components/VersionHistoryModal'
 import EmptyState from './components/EmptyState'
 
-const emptyFilters = { search: '', categoryId: null, tags: [], quick: null, sort: 'default' }
+const emptyFilters = { search: '', categoryId: null, tags: [], quick: null, status: null, sort: 'default' }
 
 function ConfigNotice() {
   return (
@@ -65,6 +67,7 @@ export default function App() {
   const [editingPrompt, setEditingPrompt] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [historyPrompt, setHistoryPrompt] = useState(null)
+  const [previewPrompt, setPreviewPrompt] = useState(null)
   const [filters, setFilters] = useState(emptyFilters)
   const [view, setView] = useState('library')
 
@@ -72,7 +75,11 @@ export default function App() {
   const allTags = useMemo(() => getAllTags(prompts), [prompts])
   const filteredPrompts = useFilteredPrompts(prompts, filters)
   const hasActiveFilters =
-    filters.search.trim() !== '' || filters.categoryId || filters.tags.length > 0 || filters.quick !== null
+    filters.search.trim() !== '' ||
+    filters.categoryId ||
+    filters.tags.length > 0 ||
+    filters.quick !== null ||
+    filters.status !== null
 
   // "รายการโปรด" in the sidebar isn't a separate page — it's a shortcut into
   // the library view pre-filtered to favorites, so it reuses all the same
@@ -163,6 +170,7 @@ export default function App() {
         <div className="wrap max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
           {view === 'settings' && <SettingsView showToast={showToast} theme={theme} onThemeChange={setTheme} />}
           {view === 'trash' && <TrashView showToast={showToast} />}
+          {view === 'dashboard' && <DashboardView prompts={prompts} categories={categoriesQuery.data} />}
           {view === 'library' && (
             <>
               <Toolbar
@@ -202,6 +210,8 @@ export default function App() {
                   }
                   quick={filters.quick}
                   onQuickChange={(v) => setFilters((f) => ({ ...f, quick: v }))}
+                  status={filters.status}
+                  onStatusChange={(v) => setFilters((f) => ({ ...f, status: v }))}
                   sort={filters.sort}
                   onSortChange={(v) => setFilters((f) => ({ ...f, sort: v }))}
                   onClearAll={() => setFilters(emptyFilters)}
@@ -227,6 +237,7 @@ export default function App() {
                       onToggleFavorite={(pr) => toggleFavorite.mutate({ id: pr.id, value: !pr.is_favorite })}
                       onTogglePin={(pr) => togglePin.mutate({ id: pr.id, value: !pr.is_pinned })}
                       onViewHistory={setHistoryPrompt}
+                      onPreview={setPreviewPrompt}
                       disabled={!isOnline || p._optimistic}
                       style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
                     />
@@ -245,6 +256,16 @@ export default function App() {
         categories={categoriesQuery.data}
         initial={editingPrompt}
         saving={createPrompt.isPending || updatePrompt.isPending}
+      />
+
+      <PromptPreviewModal
+        prompt={previewPrompt}
+        onClose={() => setPreviewPrompt(null)}
+        onCopy={handleCopy}
+        onEdit={(p) => {
+          setPreviewPrompt(null)
+          openEditForm(p)
+        }}
       />
 
       <ConfirmDialog

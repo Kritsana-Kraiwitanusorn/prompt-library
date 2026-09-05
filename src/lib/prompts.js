@@ -72,10 +72,10 @@ export async function fetchVersions(promptId) {
 // Writes
 // ---------------------------------------------------------------------------
 
-export async function createPrompt({ title, content, category_id, tags = [], image_url = null }) {
+export async function createPrompt({ title, content, category_id, tags = [], image_url = null, status = 'draft' }) {
   const { data, error } = await supabase
     .from('prompts')
-    .insert({ title, content, category_id, tags, image_url })
+    .insert({ title, content, category_id, tags, image_url, status })
     .select()
     .single()
 
@@ -112,6 +112,15 @@ export async function deletePrompt(id) {
 
 export async function restorePrompt(id) {
   return updatePrompt(id, { is_deleted: false })
+}
+
+// Permanent delete — only ever called from the Trash view, on an already
+// soft-deleted row. Cleans up the storage image (best-effort) first, then
+// removes the row; prompt_versions cascade-delete with it via the FK.
+export async function hardDeletePrompt(id, imageUrl) {
+  if (imageUrl) await deletePromptImage(imageUrl)
+  const { error } = await supabase.from('prompts').delete().eq('id', id)
+  if (error) throw error
 }
 
 // Roll back to a prior version's text (creates a new version snapshot too,
@@ -175,6 +184,8 @@ export async function exportPromptsAsJson() {
       content: p.content,
       tags: p.tags,
       category: p.category?.name ?? null,
+      image_url: p.image_url ?? null,
+      status: p.status ?? 'draft',
       is_favorite: p.is_favorite,
       is_pinned: p.is_pinned,
     })),
@@ -217,6 +228,8 @@ export async function importPromptsFromJson(json) {
       content: item.content,
       tags: item.tags ?? [],
       category_id,
+      image_url: item.image_url ?? null,
+      status: item.status ?? 'draft',
       is_favorite: Boolean(item.is_favorite),
       is_pinned: Boolean(item.is_pinned),
     })

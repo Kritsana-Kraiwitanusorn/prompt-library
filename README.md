@@ -83,6 +83,44 @@ version history + restore, and JSON export/import (`exportPromptsAsJson` /
 - [x] Phase 5 (partial) — responsive polish. **Deploy intentionally deferred** pending testing/review.
 - [x] Extra — category management (add/edit/delete) via a Settings tab, plus UI/UX polish pass
 - [x] Extra — left sidebar navigation, Trash (soft-delete recovery), preview images, light/dark theme
+- [x] Extra — prompt status, preview modal, dashboard, permanent delete from Trash, mobile bottom nav, bug fixes
+
+**New setup requires one more migration:** run
+[`supabase/migration_003_status.sql`](./supabase/migration_003_status.sql)
+once if your database already exists (fresh installs already have it via
+`schema.sql`).
+
+## Status, preview, and dashboard
+
+- **Status** — every prompt has a lifecycle status: ฉบับร่าง (draft), รอตรวจสอบ
+  (review), ใช้งานจริง (production), or เก็บถาวร (archived). Set it in the
+  add/edit form, shown as a badge on each card, filterable in the library.
+  This is deliberately separate from favorite/pin, which track importance
+  rather than lifecycle stage (`src/lib/constants.js`).
+- **Preview** — click a card's image/title, or the 👁 button, to see the full
+  image and untruncated content before copying or editing
+  (`PromptPreviewModal.jsx`).
+- **Dashboard** — new sidebar tab summarizing totals, a status breakdown,
+  and a per-category bar chart, computed client-side from data already in
+  the cache (`DashboardView.jsx`) — no extra backend calls.
+- **Trash → permanent delete** — soft-deleted prompts can now also be
+  deleted for good (row + version history + storage image), behind a
+  confirm dialog since it's irreversible.
+- **Mobile nav** — the sidebar becomes a bottom tab bar on small screens
+  instead of a horizontally-scrolling top bar, which is easier to reach
+  with a thumb and is the more familiar mobile pattern for 4–5 top-level
+  sections.
+
+### Bug fixes in this pass
+- Deleting a prompt now updates the Trash list immediately instead of only
+  after its next unrelated fetch.
+- A newly created prompt with an image no longer briefly loses the image
+  during its optimistic (pre-confirmed) state.
+- JSON export/import now round-trips `image_url` and `status` — previously
+  both were silently dropped.
+- Removed a couple of hardcoded colors that didn't adapt to dark mode
+  (`.tag-cat`, the offline banner) in favor of the shared `--mustard-ink`
+  variable.
 
 ## Navigation & Trash
 

@@ -1,3 +1,5 @@
+import { getStatusMeta } from '../lib/constants'
+
 function formatRelative(dateStr) {
   const diffMs = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diffMs / 60000)
@@ -18,16 +20,19 @@ export default function PromptCard({
   onToggleFavorite,
   onTogglePin,
   onViewHistory,
+  onPreview,
   disabled,
   style,
 }) {
   const isOptimistic = Boolean(prompt._optimistic)
   const actionsDisabled = disabled
+  const status = getStatusMeta(prompt.status)
 
   return (
     <div className={`idx-card${prompt.is_pinned ? ' pinned' : ''}${isOptimistic ? ' optimistic' : ''}`} style={style}>
       <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-wrap">
+        <div className="flex flex-wrap items-center">
+          <span className={`status-badge ${status.badgeClass}`}>{status.label}</span>
           {prompt.category && <span className="tag tag-cat">{prompt.category.name}</span>}
           {prompt.tags?.map((t) => (
             <span key={t} className="tag">
@@ -36,6 +41,9 @@ export default function PromptCard({
           ))}
         </div>
         <div className="flex gap-1 shrink-0">
+          <button title="ดูตัวอย่าง" className="btn-icon" onClick={() => onPreview(prompt)}>
+            👁
+          </button>
           <button
             title={prompt.is_pinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
             className={`btn-icon${prompt.is_pinned ? ' active' : ''}`}
@@ -55,8 +63,18 @@ export default function PromptCard({
         </div>
       </div>
 
-      {prompt.image_url && <img src={prompt.image_url} alt="" className="card-image" loading="lazy" />}
-      <p className="card-title">{prompt.title}</p>
+      {prompt.image_url && (
+        <img
+          src={prompt.image_url}
+          alt=""
+          className="card-image"
+          loading="lazy"
+          onClick={() => onPreview(prompt)}
+        />
+      )}
+      <p className="card-title cursor-pointer" onClick={() => onPreview(prompt)}>
+        {prompt.title}
+      </p>
       <p className="card-snip">{prompt.content}</p>
 
       <div className="card-meta">

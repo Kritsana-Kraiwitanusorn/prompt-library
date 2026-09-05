@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { uploadPromptImage, deletePromptImage } from '../lib/prompts'
+import { STATUS_OPTIONS } from '../lib/constants'
 
-const emptyForm = { title: '', content: '', category_id: '', tags: '' }
+const emptyForm = { title: '', content: '', category_id: '', tags: '', status: 'draft' }
 
 export default function PromptFormModal({ open, onClose, onSubmit, categories, initial, saving }) {
   const [form, setForm] = useState(emptyForm)
@@ -20,6 +21,7 @@ export default function PromptFormModal({ open, onClose, onSubmit, categories, i
         content: initial.content ?? '',
         category_id: initial.category_id ?? '',
         tags: (initial.tags ?? []).join(', '),
+        status: initial.status ?? 'draft',
       })
       setImagePreview(initial.image_url ?? null)
     } else {
@@ -81,6 +83,7 @@ export default function PromptFormModal({ open, onClose, onSubmit, categories, i
         category_id: form.category_id || null,
         tags,
         image_url,
+        status: form.status,
       })
 
       // Best-effort cleanup of the old file — never blocks the save above.
@@ -158,7 +161,17 @@ export default function PromptFormModal({ open, onClose, onSubmit, categories, i
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="field-label">สถานะ</label>
+              <select className="field" value={form.status} onChange={(e) => handleChange('status', e.target.value)}>
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="field-label">หมวดหมู่</label>
               <select

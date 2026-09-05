@@ -25,6 +25,8 @@ create table if not exists prompts (
   category_id   uuid references categories(id) on delete set null,
   tags          text[] not null default '{}',   -- denormalized for fast filter/search
   image_url     text,                            -- optional preview image (e.g. sample output)
+  status        text not null default 'draft'
+                  check (status in ('draft', 'review', 'production', 'archived')),
   is_favorite   boolean not null default false,
   is_pinned     boolean not null default false,
   current_version integer not null default 1,
@@ -56,6 +58,7 @@ create index if not exists idx_prompts_tags        on prompts using gin (tags);
 create index if not exists idx_prompts_category     on prompts (category_id);
 create index if not exists idx_prompts_favorite     on prompts (is_favorite) where is_favorite = true;
 create index if not exists idx_prompts_pinned       on prompts (is_pinned) where is_pinned = true;
+create index if not exists idx_prompts_status       on prompts (status);
 create index if not exists idx_prompts_not_deleted  on prompts (is_deleted) where is_deleted = false;
 create index if not exists idx_prompts_search       on prompts using gin (
   to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(content,''))

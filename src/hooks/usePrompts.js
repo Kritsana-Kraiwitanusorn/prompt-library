@@ -3,6 +3,7 @@ import * as api from '../lib/prompts'
 
 const PROMPTS_KEY = ['prompts']
 const CATEGORIES_KEY = ['categories']
+const DELETED_KEY = ['prompts', 'deleted']
 
 export function usePromptsQuery() {
   return useQuery({ queryKey: PROMPTS_KEY, queryFn: api.fetchPrompts })
@@ -13,18 +14,7 @@ export function useCategoriesQuery() {
 }
 
 export function useDeletedPromptsQuery(enabled = true) {
-  return useQuery({ queryKey: ['prompts', 'deleted'], queryFn: api.fetchDeletedPrompts, enabled })
-}
-
-export function useRestorePrompt() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: api.restorePrompt,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: PROMPTS_KEY })
-      qc.invalidateQueries({ queryKey: ['prompts', 'deleted'] })
-    },
-  })
+  return useQuery({ queryKey: DELETED_KEY, queryFn: api.fetchDeletedPrompts, enabled })
 }
 
 export function useVersionsQuery(promptId, enabled) {
@@ -43,8 +33,11 @@ export function useVersionsQuery(promptId, enabled) {
 // error, and reconcile with the server's version on settle (this is what
 // picks up server-computed fields like current_version bumps from the DB
 // trigger, so the optimistic guess never has to be perfectly accurate).
+// `extraInvalidateKeys` lets a mutation also refresh a second cache (e.g.
+// deleting a prompt should also refresh the Trash list) without needing a
+// bespoke wrapper per mutation.
 // ---------------------------------------------------------------------------
-function useOptimisticPromptsMutation(mutationFn, applyOptimistic) {
+function useOptimisticPromptsMutation(mutationFn, applyOptimistic, extraInvalidateKeys = []) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn,
@@ -59,7 +52,10 @@ function useOptimisticPromptsMutation(mutationFn, applyOptimistic) {
     onError: (_err, _variables, context) => {
       if (context?.previous) qc.setQueryData(PROMPTS_KEY, context.previous)
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: PROMPTS_KEY }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PROMPTS_KEY })
+      extraInvalidateKeys.forEach((key) => qc.invalidateQueries({ queryKey: key }))
+    },
   })
 }
 
@@ -74,6 +70,8 @@ export function useCreatePrompt() {
       category_id: fields.category_id ?? null,
       category,
       tags: fields.tags ?? [],
+      image_url: fields.image_url ?? null,
+      status: fields.status ?? 'draft',
       is_favorite: false,
       is_pinned: false,
       current_version: 1,
@@ -108,17 +106,60 @@ export function useTogglePin() {
   )
 }
 
+// Soft delete — also refreshes the Trash list so the item shows up there
+// immediately instead of only appearing after its own next fetch.
 export function useDeletePrompt() {
+  return useOptimisticPromptsMutation(
+    api.deletePrompt,
+    (prompts, id) => prompts.filter((p) => p.id !== id),
+    [DELETED_KEY],
+  )
+}
+
+// Restore/hard-delete operate on the Trash list, not the main prompts
+// cache, so they get their own small optimistic pattern rather than reusing
+// the helper above.
+export function useRestorePrompt() {
   const qc = useQueryClient()
-  const mutation = useOptimisticPromptsMutation(api.deletePrompt, (prompts, id) => prompts.filter((p) => p.id !== id))
-  return {
-    ...mutation,
-    mutateAsync: async (id) => {
-      const result = await mutation.mutateAsync(id)
-      qc.invalidateQueries({ queryKey: ['prompts', 'deleted'] })
-      return result
+  return useMutation({
+    mutationFn: (prompt) => api.restorePrompt(prompt.id),
+    onMutate: async (prompt) => {
+      await qc.cancelQueries({ queryKey: DELETED_KEY })
+      const previousDeleted = qc.getQueryData(DELETED_KEY)
+      if (previousDeleted) {
+        qc.setQueryData(DELETED_KEY, previousDeleted.filter((p) => p.id !== prompt.id))
+      }
+      return { previousDeleted }
     },
-  }
+    onError: (_err, _prompt, context) => {
+      if (context?.previousDeleted) qc.setQueryData(DELETED_KEY, context.previousDeleted)
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: PROMPTS_KEY })
+      qc.invalidateQueries({ queryKey: DELETED_KEY })
+    },
+  })
+}
+
+// Permanent delete from Trash — irreversible, so this is only ever wired up
+// behind an explicit confirm dialog in the UI.
+export function useHardDeletePrompt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (prompt) => api.hardDeletePrompt(prompt.id, prompt.image_url),
+    onMutate: async (prompt) => {
+      await qc.cancelQueries({ queryKey: DELETED_KEY })
+      const previousDeleted = qc.getQueryData(DELETED_KEY)
+      if (previousDeleted) {
+        qc.setQueryData(DELETED_KEY, previousDeleted.filter((p) => p.id !== prompt.id))
+      }
+      return { previousDeleted }
+    },
+    onError: (_err, _prompt, context) => {
+      if (context?.previousDeleted) qc.setQueryData(DELETED_KEY, context.previousDeleted)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: DELETED_KEY }),
+  })
 }
 
 export function useRestoreVersion() {
