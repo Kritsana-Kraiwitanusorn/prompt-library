@@ -21,7 +21,12 @@ export default function DashboardView({ prompts, categories }) {
 
     const maxCategoryCount = Math.max(1, ...categoryCounts.map((c) => c.count))
 
-    return { total, favorites, pinned, withImage, statusCounts, categoryCounts, maxCategoryCount }
+    const mostCopied = [...prompts]
+      .filter((p) => (p.copy_count ?? 0) > 0)
+      .sort((a, b) => (b.copy_count ?? 0) - (a.copy_count ?? 0))
+      .slice(0, 5)
+
+    return { total, favorites, pinned, withImage, statusCounts, categoryCounts, maxCategoryCount, mostCopied }
   }, [prompts, categories])
 
   return (
@@ -73,6 +78,21 @@ export default function DashboardView({ prompts, categories }) {
           </div>
         )}
       </div>
+
+      {stats.mostCopied.length > 0 && (
+        <div className="settings-card">
+          <h3 className="font-display text-lg font-semibold mb-4">ใช้บ่อยที่สุด</h3>
+          <div className="flex flex-col gap-3">
+            {stats.mostCopied.map((p, i) => (
+              <div key={p.id} className="flex items-center gap-3">
+                <span className="font-mono text-xs text-[var(--ink-soft)] w-4 shrink-0">{i + 1}</span>
+                <span className="text-sm flex-1 truncate">{p.title}</span>
+                <span className="font-mono text-xs text-[var(--ink-soft)] shrink-0">{p.copy_count}× คัดลอก</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

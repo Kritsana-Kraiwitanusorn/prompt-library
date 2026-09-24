@@ -133,6 +133,9 @@ export default function PromptFormModal({ open, onClose, onSubmit, categories, i
               placeholder="พิมพ์พรอมต์ของคุณที่นี่..."
               rows={6}
             />
+            <p className="text-xs text-[var(--ink-soft)] mt-1.5">
+              ใช้ <span className="var-chip">{'{{ชื่อตัวแปร}}'}</span> เพื่อสร้างช่องให้กรอกก่อนคัดลอกทุกครั้ง
+            </p>
           </div>
 
           <div>

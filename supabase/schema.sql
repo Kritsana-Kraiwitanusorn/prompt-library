@@ -27,6 +27,7 @@ create table if not exists prompts (
   image_url     text,                            -- optional preview image (e.g. sample output)
   status        text not null default 'draft'
                   check (status in ('draft', 'review', 'production', 'archived')),
+  copy_count    integer not null default 0,
   is_favorite   boolean not null default false,
   is_pinned     boolean not null default false,
   current_version integer not null default 1,
@@ -59,6 +60,7 @@ create index if not exists idx_prompts_category     on prompts (category_id);
 create index if not exists idx_prompts_favorite     on prompts (is_favorite) where is_favorite = true;
 create index if not exists idx_prompts_pinned       on prompts (is_pinned) where is_pinned = true;
 create index if not exists idx_prompts_status       on prompts (status);
+create index if not exists idx_prompts_copy_count   on prompts (copy_count desc);
 create index if not exists idx_prompts_not_deleted  on prompts (is_deleted) where is_deleted = false;
 create index if not exists idx_prompts_search       on prompts using gin (
   to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(content,''))
@@ -160,3 +162,35 @@ drop policy if exists "public delete prompt images" on storage.objects;
 create policy "public delete prompt images"
   on storage.objects for delete
   using (bucket_id = 'prompt-images');
+
+-- ---------------------------------------------------------------------------
+-- Skills: reference notes (skill.md style), separate from prompts. Read as
+-- reference material rather than run as an instruction to an AI model.
+-- ---------------------------------------------------------------------------
+create table if not exists skills (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null,
+  category    text,                          -- free-text label, e.g. "UX/UI", "Analysis"
+  content     text not null,
+  tags        text[] not null default '{}',
+  is_deleted  boolean not null default false,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists idx_skills_not_deleted on skills (is_deleted) where is_deleted = false;
+create index if not exists idx_skills_search on skills using gin (
+  to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(content,'') || ' ' || coalesce(category,''))
+);
+
+drop trigger if exists trg_skills_updated_at on skills;
+create trigger trg_skills_updated_at
+  before update on skills
+  for each row execute function set_updated_at();
+
+alter table skills enable row level security;
+
+drop policy if exists "public read skills" on skills;
+drop policy if exists "public write skills" on skills;
+create policy "public read skills"  on skills for select using (true);
+create policy "public write skills" on skills for all    using (true) with check (true);

@@ -5,6 +5,7 @@ export const SORT_OPTIONS = [
   { value: 'updated_desc', label: 'แก้ไขล่าสุด' },
   { value: 'updated_asc', label: 'แก้ไขนานสุด' },
   { value: 'title_asc', label: 'ชื่อ A–Z' },
+  { value: 'copy_desc', label: 'ใช้บ่อยที่สุด' },
 ]
 
 export function getAllTags(prompts) {
@@ -47,6 +48,8 @@ export function useFilteredPrompts(prompts, filters) {
       result = [...result].sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))
     } else if (sort === 'title_asc') {
       result = [...result].sort((a, b) => a.title.localeCompare(b.title, 'th'))
+    } else if (sort === 'copy_desc') {
+      result = [...result].sort((a, b) => (b.copy_count ?? 0) - (a.copy_count ?? 0))
     }
     // 'default' keeps the server order (pinned first, then most recently updated)
 

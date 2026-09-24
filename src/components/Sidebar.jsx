@@ -1,9 +1,11 @@
+import { LayoutGrid, BarChart3, GraduationCap, Trash2, Settings } from 'lucide-react'
+
 const NAV_ITEMS = [
-  { key: 'dashboard', icon: '📊', label: 'แดชบอร์ด' },
-  { key: 'library', icon: '🗂️', label: 'คลัง' },
-  { key: 'favorites', icon: '★', label: 'รายการโปรด' },
-  { key: 'trash', icon: '🗑️', label: 'ถังขยะ' },
-  { key: 'settings', icon: '⚙️', label: 'ตั้งค่า' },
+  { key: 'dashboard', icon: BarChart3, label: 'แดชบอร์ด' },
+  { key: 'library', icon: LayoutGrid, label: 'คลัง' },
+  { key: 'skills', icon: GraduationCap, label: 'สกิล' },
+  { key: 'trash', icon: Trash2, label: 'ถังขยะ' },
+  { key: 'settings', icon: Settings, label: 'ตั้งค่า' },
 ]
 
 export default function Sidebar({ activeKey, onSelect }) {
@@ -15,16 +17,19 @@ export default function Sidebar({ activeKey, onSelect }) {
       </div>
 
       <nav className="sidebar-nav">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            className={`sidebar-link${activeKey === item.key ? ' sidebar-link-active' : ''}`}
-            onClick={() => onSelect(item.key)}
-          >
-            <span className="sidebar-icon">{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.key}
+              className={`sidebar-link${activeKey === item.key ? ' sidebar-link-active' : ''}`}
+              onClick={() => onSelect(item.key)}
+            >
+              <Icon className="sidebar-icon" strokeWidth={activeKey === item.key ? 2.3 : 1.8} />
+              {item.label}
+            </button>
+          )
+        })}
       </nav>
     </aside>
   )

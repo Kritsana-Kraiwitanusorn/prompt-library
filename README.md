@@ -1,11 +1,14 @@
 # Prompt Library
 
-A shared, tag-searchable library of AI prompts. No login — anyone with the
-link can browse, add, and edit. Fast to load via client-side caching (React
-Query); requires a connection to sync changes.
+A shared, tag-searchable library of AI prompts and reference notes. No
+login — anyone with the link can browse, add, and edit. Cache-first for
+fast loads and read-while-offline; writes sync once you're back online.
 
-**Status: Phase 1 — data layer + project scaffold.** No browsing/editing UI
-yet; the app currently only shows a connection checkpoint screen.
+**Status:** feature-complete for personal/small-team use — prompts (with
+versioning, images, status, variables, favorites/pin), a separate Skills
+section for reference notes, a dashboard, trash with recovery, light/dark
+glass UI, and keyboard shortcuts. **Not yet deployed** — see "Deploying"
+below when you're ready.
 
 ## Stack
 
@@ -16,21 +19,24 @@ yet; the app currently only shows a connection checkpoint screen.
 
 ## 1. Create the database
 
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** in the dashboard, paste the contents of
-   [`supabase/schema.sql`](./supabase/schema.sql), and run it.
-   This creates `categories`, `prompts`, `prompt_versions`, indexes,
-   versioning triggers, public RLS policies, and the public storage bucket
-   used for prompt preview images. **New setups only need this file** —
-   don't also run the migration below.
+**New setup (no existing Supabase project for this app)?** Create a free
+project at [supabase.com](https://supabase.com), open **SQL Editor**, paste
+the contents of [`supabase/schema.sql`](./supabase/schema.sql), and run it.
+That single file includes everything below — skip the migrations list.
 
-**Already had this project running before the image feature existed** (i.e.
-your database already has a `prompts` table from an earlier `schema.sql`
-run)? Run [`supabase/migration_002_images.sql`](./supabase/migration_002_images.sql)
-once to add the `image_url` column and the storage bucket/policies without
-touching your existing data. Running it against a database that doesn't
-have `prompts` yet (e.g. a brand-new Supabase project) will fail on purpose
-with a message telling you to run `schema.sql` first.
+**Already have this project's database from an earlier version?** Run
+these in order (each is safe to skip if you're already past that point —
+every migration checks what it needs and either applies cleanly or tells
+you what to run first):
+
+1. [`migration_002_images.sql`](./supabase/migration_002_images.sql) — adds
+   `image_url` + the public storage bucket for preview images.
+2. [`migration_003_status.sql`](./supabase/migration_003_status.sql) — adds
+   the `status` column (draft/review/production/archived).
+3. [`migration_004_skills.sql`](./supabase/migration_004_skills.sql) —
+   creates the `skills` table.
+4. [`migration_005_copy_count.sql`](./supabase/migration_005_copy_count.sql)
+   — adds `copy_count` for usage tracking.
 
 ## 2. Configure the app
 
@@ -84,11 +90,94 @@ version history + restore, and JSON export/import (`exportPromptsAsJson` /
 - [x] Extra — category management (add/edit/delete) via a Settings tab, plus UI/UX polish pass
 - [x] Extra — left sidebar navigation, Trash (soft-delete recovery), preview images, light/dark theme
 - [x] Extra — prompt status, preview modal, dashboard, permanent delete from Trash, mobile bottom nav, bug fixes
+- [x] Extra — iOS-style mobile UX overhaul, Skills section, decluttered filters, lucide icon system
+- [x] Extra — Apple-style glass visual redesign, prompt variables, copy-count tracking, keyboard shortcuts
 
-**New setup requires one more migration:** run
-[`supabase/migration_003_status.sql`](./supabase/migration_003_status.sql)
+**New setup requires two more migrations:** run
+[`supabase/migration_005_copy_count.sql`](./supabase/migration_005_copy_count.sql)
 once if your database already exists (fresh installs already have it via
-`schema.sql`).
+`schema.sql`). No migration was needed for the glass redesign or keyboard
+shortcuts — those are frontend-only.
+
+## Glass visual redesign
+
+- Every surface — sidebar, cards, modals, the action sheet, the toast —
+  is now a translucent, blurred glass panel (`backdrop-filter: blur(...)
+  saturate(...)`) over a soft, fixed gradient "wallpaper" behind the app
+  (`body::before` in `index.css`), which is what makes the blur actually
+  visible instead of blurring a flat color into itself.
+- Corners are rounded throughout (cards ~20px, modals ~24px, buttons fully
+  pill-shaped) and typography now uses the system font stack
+  (`-apple-system, BlinkMacSystemFont, ...`) instead of a decorative serif,
+  both closer to how iOS/macOS actually looks.
+- Both light and dark theme now have a glass variant — `--glass-bg`,
+  `--glass-border`, `--glass-fill` etc. are redefined per theme, so no
+  component needed to change, only the tokens.
+- `-webkit-backdrop-filter` is included alongside the standard property
+  everywhere, since that prefix is what makes it render correctly in Safari
+  and on iOS specifically — easy to accidentally miss and have the "glass"
+  silently fall back to a flat color there.
+
+## Prompt variables — {{ }}
+
+- Write `{{customer_name}}` (or any `{{...}}`) anywhere in a prompt's
+  content, and copying that prompt now opens a small form asking for each
+  variable before copying the filled-in text — instead of copying the
+  literal `{{customer_name}}` text (`src/lib/variables.js`,
+  `VariableFillModal.jsx`). Prompts without any `{{ }}` copy instantly as
+  before — no extra step added for the common case.
+- A prompt with variables shows a small `{{n}}` indicator on its card so
+  it's clear at a glance which prompts need filling in.
+
+## Usage tracking & keyboard shortcuts
+
+- Every successful copy increments a `copy_count` on that prompt. Sort by
+  "ใช้บ่อยที่สุด" in the library, or see the top 5 most-copied prompts on
+  the Dashboard.
+- Shortcuts: **/** focuses search, **N** opens "add prompt" (library view
+  only), **Esc** closes whichever modal/sheet is open. Shortcuts are
+  disabled while typing in any field so they never interfere with normal
+  text entry.
+
+## Mobile UX overhaul (iOS-inspired)
+
+- Replaced the emoji icon set app-wide with **lucide-react** line icons —
+  reads as a deliberately designed icon system rather than ad hoc emoji.
+- **Action sheet** (`ActionSheet.jsx`) — an iOS-style bottom sheet with
+  grouped actions and a separate Cancel button. On mobile, `PromptCard` and
+  `Toolbar` now show only their single most common action up front (Copy;
+  Add prompt) plus a "•••" button that opens the sheet for everything else
+  (preview, pin, favorite, edit, version history, delete / export, import).
+  Desktop keeps the full row of icon buttons, since a mouse-driven hover UI
+  doesn't have the same crowding problem a small touch screen does.
+- **Card header decluttered** — instead of a status pill + category pill +
+  every tag chip all competing for attention, a card now shows a small
+  status dot, the category name as plain text, and at most 2 tags inline
+  (`+N` for the rest) — full detail is one tap away in the preview modal.
+- **Filters decluttered** — category and status went from two walls of
+  chips to compact native `<select>` dropdowns; the tag list collapses to 8
+  by default with a "+N เพิ่มเติม" expand toggle instead of always showing
+  every tag in the library at once.
+
+## Skills
+
+- A second, simpler content type alongside prompts: reference notes (think
+  `skill.md` files) like "UX/UI heuristics" or "Analysis checklist" — kept
+  separate because they're read as reference material, not run as an
+  instruction to a model.
+- New `skills` table (`title`, free-text `category`, `content`, `tags`) and
+  its own Settings-free CRUD in `SkillsView.jsx` / `SkillFormModal.jsx` /
+  `src/lib/skills.js`. No versioning, images, or Trash for skills — kept
+  intentionally lighter-weight than prompts. Delete is immediate (behind a
+  confirm dialog), not soft-deleted.
+
+## Navigation change
+
+- Removed the "รายการโปรด" (Favorites) sidebar shortcut — it duplicated the
+  ★ favorites quick-filter already in the library's filter bar. The
+  sidebar's job is switching between distinct sections (Library, Skills,
+  Trash, Settings, Dashboard); filtering within a section belongs in that
+  section's own filter bar.
 
 ## Status, preview, and dashboard
 

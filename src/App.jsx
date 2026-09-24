@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isSupabaseConfigured } from './lib/supabase'
 import { exportPromptsAsJson } from './lib/prompts'
+import { extractVariables } from './lib/variables'
 import {
   usePromptsQuery,
   useCategoriesQuery,
@@ -9,6 +10,7 @@ import {
   useDeletePrompt,
   useToggleFavorite,
   useTogglePin,
+  useIncrementCopyCount,
   useRestoreVersion,
   useImportPrompts,
 } from './hooks/usePrompts'
@@ -21,11 +23,13 @@ import Sidebar from './components/Sidebar'
 import SettingsView from './components/SettingsView'
 import TrashView from './components/TrashView'
 import DashboardView from './components/DashboardView'
+import SkillsView from './components/SkillsView'
 import FilterBar from './components/FilterBar'
 import PromptCard from './components/PromptCard'
 import { PromptGridSkeleton } from './components/PromptCardSkeleton'
 import PromptFormModal from './components/PromptFormModal'
 import PromptPreviewModal from './components/PromptPreviewModal'
+import VariableFillModal from './components/VariableFillModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import VersionHistoryModal from './components/VersionHistoryModal'
 import EmptyState from './components/EmptyState'
@@ -58,6 +62,7 @@ export default function App() {
   const togglePin = useTogglePin()
   const restoreVersion = useRestoreVersion()
   const importPrompts = useImportPrompts()
+  const incrementCopyCount = useIncrementCopyCount()
 
   const { message, showToast } = useToast()
   const isOnline = useOnlineStatus()
@@ -68,8 +73,10 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [historyPrompt, setHistoryPrompt] = useState(null)
   const [previewPrompt, setPreviewPrompt] = useState(null)
+  const [variablePrompt, setVariablePrompt] = useState(null)
   const [filters, setFilters] = useState(emptyFilters)
   const [view, setView] = useState('library')
+  const searchInputRef = useRef(null)
 
   const prompts = promptsQuery.data ?? []
   const allTags = useMemo(() => getAllTags(prompts), [prompts])
@@ -80,23 +87,6 @@ export default function App() {
     filters.tags.length > 0 ||
     filters.quick !== null ||
     filters.status !== null
-
-  // "รายการโปรด" in the sidebar isn't a separate page — it's a shortcut into
-  // the library view pre-filtered to favorites, so it reuses all the same
-  // filtering/rendering logic instead of duplicating it.
-  const activeNav = view === 'library' && filters.quick === 'favorite' ? 'favorites' : view
-
-  function handleNavSelect(key) {
-    if (key === 'favorites') {
-      setView('library')
-      setFilters((f) => ({ ...f, quick: 'favorite' }))
-    } else if (key === 'library') {
-      setView('library')
-      setFilters((f) => ({ ...f, quick: null }))
-    } else {
-      setView(key)
-    }
-  }
 
   if (!isSupabaseConfigured) return <ConfigNotice />
 
@@ -120,14 +110,67 @@ export default function App() {
     }
   }
 
+  function trackCopy(prompt) {
+    // Fire-and-forget — never let usage tracking block or fail the copy itself.
+    if (typeof prompt.id === 'string' && !prompt.id.startsWith('temp-')) {
+      incrementCopyCount.mutate({ id: prompt.id, nextCount: (prompt.copy_count ?? 0) + 1 })
+    }
+  }
+
   async function handleCopy(prompt) {
+    const variables = extractVariables(prompt.content)
+    if (variables.length > 0) {
+      setVariablePrompt(prompt)
+      return
+    }
     try {
       await navigator.clipboard.writeText(prompt.content)
+      trackCopy(prompt)
       showToast('คัดลอกแล้ว')
     } catch {
       showToast('คัดลอกไม่สำเร็จ ลองเลือกข้อความเอง')
     }
   }
+
+  function handleVariableCopied(prompt, failed) {
+    setVariablePrompt(null)
+    if (failed) {
+      showToast('คัดลอกไม่สำเร็จ ลองเลือกข้อความเอง')
+      return
+    }
+    trackCopy(prompt)
+    showToast('คัดลอกแล้ว')
+  }
+
+  // Keyboard shortcuts: "/" focuses search, "n" opens the add-prompt form
+  // (only while browsing the library and not already typing somewhere),
+  // "Escape" closes whichever overlay is currently open.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (variablePrompt) return setVariablePrompt(null)
+        if (previewPrompt) return setPreviewPrompt(null)
+        if (historyPrompt) return setHistoryPrompt(null)
+        if (deleteTarget) return setDeleteTarget(null)
+        if (formOpen) return setFormOpen(false)
+        return
+      }
+
+      const tag = document.activeElement?.tagName
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+      if (isTyping || e.metaKey || e.ctrlKey || e.altKey) return
+
+      if (e.key === '/') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      } else if (e.key.toLowerCase() === 'n' && view === 'library') {
+        e.preventDefault()
+        openAddForm()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [variablePrompt, previewPrompt, historyPrompt, deleteTarget, formOpen, view])
 
   async function handleConfirmDelete() {
     await deletePrompt.mutateAsync(deleteTarget.id)
@@ -164,13 +207,14 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar activeKey={activeNav} onSelect={handleNavSelect} />
+      <Sidebar activeKey={view} onSelect={setView} />
 
       <div className="main-content">
         <div className="wrap max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
           {view === 'settings' && <SettingsView showToast={showToast} theme={theme} onThemeChange={setTheme} />}
           {view === 'trash' && <TrashView showToast={showToast} />}
           {view === 'dashboard' && <DashboardView prompts={prompts} categories={categoriesQuery.data} />}
+          {view === 'skills' && <SkillsView showToast={showToast} />}
           {view === 'library' && (
             <>
               <Toolbar
@@ -197,6 +241,7 @@ export default function App() {
                 <FilterBar
                   search={filters.search}
                   onSearchChange={(v) => setFilters((f) => ({ ...f, search: v }))}
+                  searchInputRef={searchInputRef}
                   categories={categoriesQuery.data}
                   categoryId={filters.categoryId}
                   onCategoryChange={(v) => setFilters((f) => ({ ...f, categoryId: v }))}
@@ -266,6 +311,12 @@ export default function App() {
           setPreviewPrompt(null)
           openEditForm(p)
         }}
+      />
+
+      <VariableFillModal
+        prompt={variablePrompt}
+        onClose={() => setVariablePrompt(null)}
+        onCopied={handleVariableCopied}
       />
 
       <ConfirmDialog

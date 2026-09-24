@@ -106,6 +106,17 @@ export function useTogglePin() {
   )
 }
 
+// Fires on every "copy" action. Not optimistic on purpose — the count isn't
+// shown anywhere urgent enough to need instant feedback, and a plain
+// invalidate keeps this simple (avoids a race with rapid repeat copies).
+export function useIncrementCopyCount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, nextCount }) => api.updatePrompt(id, { copy_count: nextCount }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PROMPTS_KEY }),
+  })
+}
+
 // Soft delete — also refreshes the Trash list so the item shows up there
 // immediately instead of only appearing after its own next fetch.
 export function useDeletePrompt() {
