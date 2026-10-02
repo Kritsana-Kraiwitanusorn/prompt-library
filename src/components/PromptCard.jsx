@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { Eye, Pin, Star, Pencil, Trash2, MoreHorizontal, History } from 'lucide-react'
+import { Eye, Pin, Star, Pencil, Trash2, MoreHorizontal, History, Copy } from 'lucide-react'
 import { getStatusMeta } from '../lib/constants'
 import { extractVariables } from '../lib/variables'
 import ActionSheet from './ActionSheet'
 
 const STATUS_DOT_COLOR = {
   draft: 'var(--ink-soft)',
-  review: 'var(--mustard)',
-  production: 'var(--teal)',
+  review: 'var(--accent)',
+  production: '#555',
   archived: 'var(--ink-soft)',
 }
 
@@ -54,23 +54,26 @@ export default function PromptCard({
 
   return (
     <div className={`idx-card${prompt.is_pinned ? ' pinned' : ''}${isOptimistic ? ' optimistic' : ''}`} style={style}>
-      {/* Compact meta row — status dot + category only, tags shown minimally */}
+
+      {/* Top meta row — same structure as Skills card */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          {/* Status dot */}
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ backgroundColor: STATUS_DOT_COLOR[status.value] }}
             title={status.label}
           />
+          {/* Category label */}
           {prompt.category && (
             <span className="text-[11px] text-[var(--ink-soft)] truncate">{prompt.category.name}</span>
           )}
+          {/* Tags */}
           {visibleTags.map((t) => (
-            <span key={t} className="tag !my-0">
-              #{t}
-            </span>
+            <span key={t} className="tag !my-0">#{t}</span>
           ))}
           {extraTagCount > 0 && <span className="text-[10.5px] text-[var(--ink-soft)]">+{extraTagCount}</span>}
+          {/* Variable indicator */}
           {variableCount > 0 && (
             <span className="var-chip" title={`มีตัวแปร ${variableCount} ตัว`}>
               {`{{${variableCount}}}`}
@@ -78,10 +81,10 @@ export default function PromptCard({
           )}
         </div>
 
-        {/* Desktop-only quick actions */}
+        {/* Desktop quick-action icons — matches Skills card icon layout */}
         <div className="hidden sm:flex gap-1 shrink-0">
           <button title="ดูตัวอย่าง" className="btn-icon" onClick={() => onPreview(prompt)}>
-            <Eye size={14} strokeWidth={1.8} />
+            <Eye size={13} strokeWidth={1.8} />
           </button>
           <button
             title={prompt.is_pinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
@@ -89,7 +92,7 @@ export default function PromptCard({
             onClick={() => onTogglePin(prompt)}
             disabled={actionsDisabled}
           >
-            <Pin size={14} strokeWidth={1.8} fill={prompt.is_pinned ? 'currentColor' : 'none'} />
+            <Pin size={13} strokeWidth={1.8} fill={prompt.is_pinned ? 'currentColor' : 'none'} />
           </button>
           <button
             title={prompt.is_favorite ? 'เลิกรายการโปรด' : 'เพิ่มรายการโปรด'}
@@ -97,11 +100,12 @@ export default function PromptCard({
             onClick={() => onToggleFavorite(prompt)}
             disabled={actionsDisabled}
           >
-            <Star size={14} strokeWidth={1.8} fill={prompt.is_favorite ? 'currentColor' : 'none'} />
+            <Star size={13} strokeWidth={1.8} fill={prompt.is_favorite ? 'currentColor' : 'none'} />
           </button>
         </div>
       </div>
 
+      {/* Preview image */}
       {prompt.image_url && (
         <img
           src={prompt.image_url}
@@ -111,11 +115,16 @@ export default function PromptCard({
           onClick={() => onPreview(prompt)}
         />
       )}
+
+      {/* Title — clickable to preview, same as Skills card title */}
       <p className="card-title cursor-pointer" onClick={() => onPreview(prompt)}>
         {prompt.title}
       </p>
+
+      {/* Snippet */}
       <p className="card-snip">{prompt.content}</p>
 
+      {/* Footer meta — version + last edited */}
       <div className="card-meta">
         <button
           className="font-mono underline decoration-dashed underline-offset-2 hover:text-[var(--ink)] disabled:no-underline disabled:cursor-default hidden sm:inline"
@@ -129,26 +138,26 @@ export default function PromptCard({
         <span>{isOptimistic ? 'กำลังบันทึก…' : `แก้ไข ${formatRelative(prompt.updated_at)}`}</span>
       </div>
 
-      {/* Desktop action row */}
+      {/* Desktop action row — unified: Copy + Edit + Delete (matches Skills layout) */}
       <div className="hidden sm:flex gap-2 mt-3">
         <button className="btn btn-sm btn-teal flex-1" onClick={() => onCopy(prompt)}>
-          คัดลอก
+          <Copy size={13} strokeWidth={1.8} /> คัดลอก
         </button>
         <button className="btn btn-sm flex-1" onClick={() => onEdit(prompt)} disabled={actionsDisabled}>
-          แก้ไข
+          <Pencil size={13} strokeWidth={1.8} /> แก้ไข
         </button>
         <button className="btn-icon" title="ลบ" onClick={() => onDelete(prompt)} disabled={actionsDisabled}>
-          <Trash2 size={14} strokeWidth={1.8} />
+          <Trash2 size={13} strokeWidth={1.8} />
         </button>
       </div>
 
-      {/* Mobile: one primary action + overflow menu instead of a row of icons */}
+      {/* Mobile: primary Copy + overflow sheet */}
       <div className="flex sm:hidden gap-2 mt-3">
         <button className="btn btn-sm btn-teal flex-1" onClick={() => onCopy(prompt)}>
-          คัดลอก
+          <Copy size={13} strokeWidth={1.8} /> คัดลอก
         </button>
         <button className="btn-icon" title="เพิ่มเติม" onClick={() => setSheetOpen(true)} disabled={actionsDisabled}>
-          <MoreHorizontal size={16} strokeWidth={1.8} />
+          <MoreHorizontal size={15} strokeWidth={1.8} />
         </button>
       </div>
 

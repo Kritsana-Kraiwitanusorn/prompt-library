@@ -26,3 +26,7 @@ export function useUpdateSkill() {
 export function useDeleteSkill() {
   return useSkillsMutation(api.deleteSkill)
 }
+
+export function useImportSkills() {
+  return useSkillsMutation(api.importSkillsFromJson)
+}

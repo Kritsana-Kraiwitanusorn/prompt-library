@@ -81,6 +81,9 @@ export default function App() {
   const prompts = promptsQuery.data ?? []
   const allTags = useMemo(() => getAllTags(prompts), [prompts])
   const filteredPrompts = useFilteredPrompts(prompts, filters)
+  const favoritesCount = useMemo(() => prompts.filter((p) => p.is_favorite).length, [prompts])
+  const pinnedCount = useMemo(() => prompts.filter((p) => p.is_pinned).length, [prompts])
+
   const hasActiveFilters =
     filters.search.trim() !== '' ||
     filters.categoryId ||
@@ -261,6 +264,10 @@ export default function App() {
                   onSortChange={(v) => setFilters((f) => ({ ...f, sort: v }))}
                   onClearAll={() => setFilters(emptyFilters)}
                   hasActiveFilters={hasActiveFilters}
+                  totalCount={prompts.length}
+                  favoritesCount={favoritesCount}
+                  pinnedCount={pinnedCount}
+                  filteredCount={filteredPrompts.length}
                 />
               )}
 

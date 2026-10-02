@@ -15,7 +15,7 @@ export default function VersionHistoryModal({ prompt, onClose, onRestore, restor
         <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto pr-1">
           <div className="hairline pt-3 flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
             <div>
-              <p className="font-mono text-xs text-[var(--teal-deep)] mb-1">
+              <p className="font-mono text-xs text-[var(--accent)] mb-1">
                 v{prompt.current_version} · เวอร์ชันปัจจุบัน
               </p>
               <p className="text-sm whitespace-pre-wrap break-words">{prompt.content}</p>

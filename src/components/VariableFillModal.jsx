@@ -46,11 +46,11 @@ export default function VariableFillModal({ prompt, onClose, onCopied }) {
           {filled}
         </div>
 
-        <div className="modal-actions mt-3">
-          <button className="btn" onClick={onClose}>
+        <div className="flex gap-2.5 mt-3">
+          <button className="btn flex-1" onClick={onClose}>
             ยกเลิก
           </button>
-          <button className="btn btn-teal" onClick={handleCopy}>
+          <button className="btn btn-teal flex-1" onClick={handleCopy}>
             คัดลอก
           </button>
         </div>

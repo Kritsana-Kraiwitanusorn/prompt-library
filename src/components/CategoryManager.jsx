@@ -41,7 +41,7 @@ export default function CategoryManager({ showToast }) {
       <div className="flex items-center justify-between mb-1">
         <div>
           <h3 className="font-display text-lg font-semibold">หมวดหมู่</h3>
-          <p className="text-sm text-[var(--ink-soft)]">จัดกลุ่มพรอมต์ให้ค้นหาง่ายขึ้น เพิ่มหรือลบได้ตลอดเวลา</p>
+
         </div>
         <button className="btn btn-sm btn-solid" onClick={() => { setEditing(null); setFormOpen(true) }}>
           + เพิ่มหมวดหมู่

@@ -33,14 +33,14 @@ export default function PromptPreviewModal({ prompt, onClose, onCopy, onEdit }) 
           v{prompt.current_version} · แก้ไขล่าสุด {new Date(prompt.updated_at).toLocaleString('th-TH')}
         </p>
 
-        <div className="modal-actions">
-          <button className="btn" onClick={onClose}>
+        <div className="flex gap-2.5">
+          <button className="btn flex-1" onClick={onClose}>
             ปิด
           </button>
-          <button className="btn" onClick={() => onEdit(prompt)}>
+          <button className="btn flex-1" onClick={() => onEdit(prompt)}>
             แก้ไข
           </button>
-          <button className="btn btn-teal" onClick={() => onCopy(prompt)}>
+          <button className="btn btn-teal flex-1" onClick={() => onCopy(prompt)}>
             คัดลอก
           </button>
         </div>

@@ -6,11 +6,11 @@ export default function ConfirmDialog({ open, title, description, confirmLabel =
       <div className="modal modal-sm">
         <h2 className="font-display text-lg font-semibold mb-2">{title}</h2>
         {description && <p className="text-sm text-[var(--ink-soft)] mb-6">{description}</p>}
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel}>
+        <div className="flex gap-2.5">
+          <button className="btn flex-1" onClick={onCancel}>
             ยกเลิก
           </button>
-          <button className={`btn ${danger ? 'btn-stamp' : 'btn-solid'}`} onClick={onConfirm} disabled={busy}>
+          <button className={`btn flex-1 ${danger ? 'btn-stamp' : 'btn-solid'}`} onClick={onConfirm} disabled={busy}>
             {busy ? 'กำลังดำเนินการ…' : confirmLabel}
           </button>
         </div>

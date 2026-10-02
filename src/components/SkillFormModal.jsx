@@ -55,10 +55,7 @@ export default function SkillFormModal({ open, onClose, onSubmit, initial, savin
   return (
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
-        <h2 className="font-display text-xl font-semibold mb-1">{initial ? 'แก้ไขสกิล' : 'เพิ่มสกิลใหม่'}</h2>
-        <p className="text-sm text-[var(--ink-soft)] mb-5">
-          เก็บข้อมูลอ้างอิง เช่น เกณฑ์ UX/UI, checklist การวิเคราะห์ — แยกจากพรอมต์ ไว้อ่านประกอบการทำงาน
-        </p>
+        <h2 className="font-display text-xl font-semibold mb-4">{initial ? 'แก้ไขสกิล' : 'เพิ่มสกิลใหม่'}</h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -95,7 +92,7 @@ export default function SkillFormModal({ open, onClose, onSubmit, initial, savin
               className="field font-mono text-[13px]"
               value={form.content}
               onChange={(e) => handleChange('content', e.target.value)}
-              placeholder="เขียนเนื้อหาแบบ skill.md ที่นี่..."
+              placeholder="เขียนเนื้อหาสกิลที่นี่..."
               rows={8}
             />
           </div>
@@ -112,11 +109,11 @@ export default function SkillFormModal({ open, onClose, onSubmit, initial, savin
 
           {error && <p className="text-sm text-[var(--stamp)]">{error}</p>}
 
-          <div className="modal-actions mt-1">
-            <button type="button" className="btn" onClick={onClose}>
+          <div className="flex gap-2.5 mt-2">
+            <button type="button" className="btn flex-1" onClick={onClose}>
               ยกเลิก
             </button>
-            <button type="submit" className="btn btn-solid" disabled={saving}>
+            <button type="submit" className="btn btn-solid flex-1" disabled={saving}>
               {saving ? 'กำลังบันทึก…' : initial ? 'บันทึกการแก้ไข' : 'เพิ่มสกิล'}
             </button>
           </div>

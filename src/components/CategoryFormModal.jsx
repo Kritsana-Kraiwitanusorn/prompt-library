@@ -76,11 +76,11 @@ export default function CategoryFormModal({ open, onClose, onSubmit, initial, sa
 
           {error && <p className="text-sm text-[var(--stamp)]">{error}</p>}
 
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={onClose}>
+          <div className="flex gap-2.5 mt-1">
+            <button type="button" className="btn flex-1" onClick={onClose}>
               ยกเลิก
             </button>
-            <button type="submit" className="btn btn-solid" disabled={saving}>
+            <button type="submit" className="btn btn-solid flex-1" disabled={saving}>
               {saving ? 'กำลังบันทึก…' : initial ? 'บันทึก' : 'เพิ่มหมวดหมู่'}
             </button>
           </div>
