@@ -169,6 +169,13 @@ body::before{
 }
 .field:focus{ outline:none; border-color:var(--accent); background:var(--glass-bg-strong); }
 textarea.field{ resize:vertical; min-height:120px; line-height:1.6; }
+.field-search{
+  padding-left: 40px !important;
+  padding-right: 38px !important;
+}
+
+.no-scrollbar::-webkit-scrollbar{ display:none; }
+.no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
 
 /* minimal sort control */
 .sort-control{

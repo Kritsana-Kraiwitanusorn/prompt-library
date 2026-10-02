@@ -1,24 +1,43 @@
+import { extractAiToolFromSkill, getAiToolMeta, stripAiToolTags } from '../lib/aiTools'
+import { useAiTools } from '../hooks/useAiTools'
+
 export default function SkillPreviewModal({ skill, onClose, onCopy, onEdit }) {
+  const { tools } = useAiTools()
   if (!skill) return null
+
+  const aiToolName = extractAiToolFromSkill(skill)
+  const aiToolMeta = aiToolName ? getAiToolMeta(aiToolName, tools) : null
+  const displayTags = stripAiToolTags(skill.tags ?? [])
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="flex items-start justify-between gap-3 mb-2">
           <h2 className="font-display text-xl font-semibold">{skill.title}</h2>
-          {skill.category && (
-            <span
-              className="text-xs font-medium px-2.5 py-1 rounded-full shrink-0"
-              style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
-            >
-              {skill.category}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+            {aiToolMeta && (
+              <span
+                className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full text-white shadow-xs"
+                style={{ backgroundColor: aiToolMeta.color }}
+              >
+                <span>{aiToolMeta.icon || '🤖'}</span>
+                <span>{aiToolMeta.name}</span>
+              </span>
+            )}
+            {skill.category && (
+              <span
+                className="text-xs font-medium px-2.5 py-1 rounded-full shrink-0"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+              >
+                {skill.category}
+              </span>
+            )}
+          </div>
         </div>
 
-        {skill.tags?.length > 0 && (
+        {displayTags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-4">
-            {skill.tags.map((t) => (
+            {displayTags.map((t) => (
               <span key={t} className="tag !my-0">
                 #{t}
               </span>

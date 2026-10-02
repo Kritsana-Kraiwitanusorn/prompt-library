@@ -14,6 +14,7 @@ import {
   X,
   Tag,
   Search,
+  Bot,
 } from 'lucide-react'
 import {
   useSkillsQuery,
@@ -23,6 +24,8 @@ import {
   useImportSkills,
 } from '../hooks/useSkills'
 import { exportSkillsAsJson } from '../lib/skills'
+import { useAiTools } from '../hooks/useAiTools'
+import { extractAiToolFromSkill, getAiToolMeta, stripAiToolTags } from '../lib/aiTools'
 import SkillFormModal from './SkillFormModal'
 import SkillPreviewModal from './SkillPreviewModal'
 import ConfirmDialog from './ConfirmDialog'
@@ -50,6 +53,7 @@ export default function SkillsView({ showToast }) {
   const updateSkill = useUpdateSkill()
   const deleteSkill = useDeleteSkill()
   const importSkills = useImportSkills()
+  const { tools } = useAiTools()
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -58,7 +62,7 @@ export default function SkillsView({ showToast }) {
   const [sheetSkill, setSheetSkill] = useState(null)
   const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false)
 
-  // Local storage for favorites & pinned skills to match Inventory features
+  // Local storage for favorites & pinned skills
   const [favorites, setFavorites] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('skills_favorites') || '[]')
@@ -97,6 +101,7 @@ export default function SkillsView({ showToast }) {
   // Filters state
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
+  const [selectedAiTool, setSelectedAiTool] = useState('')
   const [activeTags, setActiveTags] = useState([])
   const [quick, setQuick] = useState(null) // null | 'favorite' | 'pinned'
   const [sort, setSort] = useState('default')
@@ -107,7 +112,7 @@ export default function SkillsView({ showToast }) {
 
   const skillsRaw = skillsQuery.data ?? []
 
-  // Extract unique categories & tags
+  // Extract unique categories & tags (filtering out tool:* prefixes from raw tags)
   const categories = useMemo(() => {
     const set = new Set()
     skillsRaw.forEach((s) => {
@@ -119,19 +124,25 @@ export default function SkillsView({ showToast }) {
   const allTags = useMemo(() => {
     const set = new Set()
     skillsRaw.forEach((s) => {
-      (s.tags ?? []).forEach((t) => set.add(t))
+      stripAiToolTags(s.tags ?? []).forEach((t) => set.add(t))
     })
     return [...set].sort((a, b) => a.localeCompare(b, 'th'))
   }, [skillsRaw])
 
-  // Decorated skills with favorite & pinned flags
+  // Decorated skills with favorite, pinned, and ai_tool meta
   const skillsWithMeta = useMemo(() => {
-    return skillsRaw.map((s) => ({
-      ...s,
-      is_favorite: favorites.includes(s.id),
-      is_pinned: pinned.includes(s.id),
-    }))
-  }, [skillsRaw, favorites, pinned])
+    return skillsRaw.map((s) => {
+      const toolName = extractAiToolFromSkill(s)
+      return {
+        ...s,
+        is_favorite: favorites.includes(s.id),
+        is_pinned: pinned.includes(s.id),
+        ai_tool: toolName,
+        ai_tool_meta: toolName ? getAiToolMeta(toolName, tools) : null,
+        clean_tags: stripAiToolTags(s.tags ?? []),
+      }
+    })
+  }, [skillsRaw, favorites, pinned, tools])
 
   // Filtered skills
   const filteredSkills = useMemo(() => {
@@ -139,15 +150,19 @@ export default function SkillsView({ showToast }) {
 
     let result = skillsWithMeta.filter((s) => {
       if (category && s.category !== category) return false
+      if (selectedAiTool && s.ai_tool?.toLowerCase() !== selectedAiTool.toLowerCase()) return false
       if (quick === 'favorite' && !s.is_favorite) return false
       if (quick === 'pinned' && !s.is_pinned) return false
       if (activeTags.length > 0) {
-        const sTags = s.tags ?? []
+        const sTags = s.clean_tags
         const hasAll = activeTags.every((t) => sTags.includes(t))
         if (!hasAll) return false
       }
       if (q) {
-        const haystack = [s.title, s.content, s.category, ...(s.tags ?? [])].filter(Boolean).join(' ').toLowerCase()
+        const haystack = [s.title, s.content, s.category, s.ai_tool, ...s.clean_tags]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
         if (!haystack.includes(q)) return false
       }
       return true
@@ -169,13 +184,15 @@ export default function SkillsView({ showToast }) {
     }
 
     return result
-  }, [skillsWithMeta, search, category, activeTags, quick, sort])
+  }, [skillsWithMeta, search, category, selectedAiTool, activeTags, quick, sort])
 
-  const hasActiveFilters = search.trim() !== '' || category !== '' || activeTags.length > 0 || quick !== null
+  const hasActiveFilters =
+    search.trim() !== '' || category !== '' || selectedAiTool !== '' || activeTags.length > 0 || quick !== null
 
   function clearAllFilters() {
     setSearch('')
     setCategory('')
+    setSelectedAiTool('')
     setActiveTags([])
     setQuick(null)
     setSort('default')
@@ -216,7 +233,7 @@ export default function SkillsView({ showToast }) {
 
   async function handleConfirmDelete() {
     await deleteSkill.mutateAsync(deleteTarget.id)
-    showToast('ลบสกิลแล้ว')
+    showToast('ย้ายสกิลไปยังถังขยะแล้ว (กู้คืนได้)')
     setDeleteTarget(null)
   }
 
@@ -249,7 +266,7 @@ export default function SkillsView({ showToast }) {
   const pinnedCount = skillsWithMeta.filter((s) => s.is_pinned).length
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Hidden file input for import */}
       <input
         ref={fileInputRef}
@@ -263,11 +280,20 @@ export default function SkillsView({ showToast }) {
         }}
       />
 
-      {/* Toolbar — Matching Inventory / Library Toolbar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
+      {/* Toolbar — Responsive & Compact on Mobile */}
+      <div className="flex items-center justify-between gap-3 mb-1 sm:mb-2">
+        {/* Desktop Header */}
+        <div className="hidden sm:block">
           <span className="eyebrow font-mono">SKILLS CATALOG NO. 002</span>
-          <p className="text-sm text-[var(--ink-soft)] mt-2">{skillsRaw.length} สกิลในคลัง</p>
+          <p className="text-sm text-[var(--ink-soft)] mt-1.5">{skillsRaw.length} สกิลในคลัง</p>
+        </div>
+
+        {/* Mobile Header */}
+        <div className="flex sm:hidden items-center gap-2 min-w-0">
+          <h1 className="font-display font-bold text-lg tracking-tight truncate">คลังสกิล</h1>
+          <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] font-semibold shrink-0">
+            {skillsRaw.length}
+          </span>
         </div>
 
         {/* Desktop actions */}
@@ -283,32 +309,32 @@ export default function SkillsView({ showToast }) {
           </button>
         </div>
 
-        {/* Mobile actions */}
-        <div className="flex sm:hidden gap-2 w-full">
-          <button className="btn btn-sm btn-solid flex-1" onClick={openAdd}>
-            <Plus size={14} strokeWidth={2} /> เพิ่มสกิล
+        {/* Mobile actions: compact row side-by-side */}
+        <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+          <button className="btn btn-sm btn-solid !py-1.5 !px-3" onClick={openAdd}>
+            <Plus size={14} strokeWidth={2.2} /> เพิ่มสกิล
           </button>
-          <button className="btn-icon" title="เพิ่มเติม" onClick={() => setToolbarSheetOpen(true)}>
-            <MoreHorizontal size={16} strokeWidth={1.8} />
+          <button className="btn-icon !w-8 !h-8" title="เพิ่มเติม" onClick={() => setToolbarSheetOpen(true)}>
+            <MoreHorizontal size={15} strokeWidth={1.8} />
           </button>
         </div>
       </div>
 
-      {/* Scope Segmented Control & Filter Console (Redesigned to match Inventory) */}
+      {/* Scope Segmented Control & Filter Console */}
       {skillsRaw.length > 0 && (
-        <div className="filter-bar mb-1">
+        <div className="filter-bar mb-2 sm:mb-4">
           {/* Primary Scope Tabs: ทั้งหมด / รายการโปรด / ปักหมุด */}
-          <div className="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b border-[var(--glass-line)]">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-3 pb-2.5 border-b border-[var(--glass-line)] overflow-x-auto no-scrollbar flex-nowrap">
             <button
               onClick={() => setQuick(null)}
-              className={`chip-filter !font-medium ${quick === null ? 'chip-filter-active' : ''}`}
+              className={`chip-filter !font-medium shrink-0 ${quick === null ? 'chip-filter-active' : ''}`}
             >
               ทั้งหมด
               <span className="ml-1.5 font-mono text-[11px] opacity-80">({skillsRaw.length})</span>
             </button>
             <button
               onClick={() => setQuick(quick === 'favorite' ? null : 'favorite')}
-              className={`chip-filter !font-medium ${quick === 'favorite' ? 'chip-filter-active' : ''}`}
+              className={`chip-filter !font-medium shrink-0 ${quick === 'favorite' ? 'chip-filter-active' : ''}`}
             >
               <Star size={13} strokeWidth={2} fill={quick === 'favorite' ? 'currentColor' : 'none'} className="mr-1.5" />
               รายการโปรด
@@ -316,7 +342,7 @@ export default function SkillsView({ showToast }) {
             </button>
             <button
               onClick={() => setQuick(quick === 'pinned' ? null : 'pinned')}
-              className={`chip-filter !font-medium ${quick === 'pinned' ? 'chip-filter-active' : ''}`}
+              className={`chip-filter !font-medium shrink-0 ${quick === 'pinned' ? 'chip-filter-active' : ''}`}
             >
               <Pin size={13} strokeWidth={2} fill={quick === 'pinned' ? 'currentColor' : 'none'} className="mr-1.5" />
               ปักหมุด
@@ -324,18 +350,19 @@ export default function SkillsView({ showToast }) {
             </button>
           </div>
 
-          {/* Search + Sort Row */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-3">
+          {/* Search + AI Tool + Category + Sort Controls */}
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-2.5">
+            {/* Search Field with field-search so icon and text do not overlap */}
             <div className="relative flex-1">
               <input
                 ref={searchInputRef}
-                className="field w-full pl-9 pr-9"
-                placeholder="ค้นหาสกิล (ชื่อ, เนื้อหา, หมวดหมู่, แท็ก)…"
+                className="field field-search w-full"
+                placeholder="ค้นหาสกิล (ชื่อ, เนื้อหา, AI, หมวดหมู่, แท็ก)…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
               <Search
-                size={14}
+                size={16}
                 strokeWidth={2}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--ink-soft)] pointer-events-none"
               />
@@ -343,8 +370,9 @@ export default function SkillsView({ showToast }) {
                 <button
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--ink-soft)] hover:text-[var(--ink)]"
                   onClick={() => setSearch('')}
+                  title="ล้างข้อความค้นหา"
                 >
-                  <X size={14} />
+                  <X size={15} />
                 </button>
               ) : (
                 <kbd className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--ink-soft)] border border-[var(--glass-line)] rounded px-1.5 py-0.5 pointer-events-none font-mono">
@@ -353,9 +381,23 @@ export default function SkillsView({ showToast }) {
               )}
             </div>
 
-            {/* Dimensional dropdowns */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="dropdown-select">
+            {/* Dimensional dropdowns: horizontally scrollable on mobile */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 flex-nowrap sm:flex-wrap">
+              {/* AI Tool Dropdown Filter */}
+              <div className="dropdown-select shrink-0">
+                <select value={selectedAiTool} onChange={(e) => setSelectedAiTool(e.target.value)}>
+                  <option value="">AI ทั้งหมด</option>
+                  {tools.map((t) => (
+                    <option key={t.id} value={t.name}>
+                      {t.icon ? `${t.icon} ` : ''}{t.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} strokeWidth={2} className="dropdown-caret" />
+              </div>
+
+              {/* Category Dropdown */}
+              <div className="dropdown-select shrink-0">
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
                   <option value="">หมวดหมู่ทั้งหมด</option>
                   {categories.map((c) => (
@@ -367,7 +409,8 @@ export default function SkillsView({ showToast }) {
                 <ChevronDown size={14} strokeWidth={2} className="dropdown-caret" />
               </div>
 
-              <div className="dropdown-select">
+              {/* Sort Dropdown */}
+              <div className="dropdown-select shrink-0">
                 <select value={sort} onChange={(e) => setSort(e.target.value)}>
                   <option value="default">ค่าเริ่มต้น (ปักหมุดก่อน)</option>
                   <option value="updated_desc">แก้ไขล่าสุด</option>
@@ -381,7 +424,7 @@ export default function SkillsView({ showToast }) {
 
           {/* Active Tags Chips */}
           {activeTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 items-center mb-3">
+            <div className="flex flex-wrap gap-1.5 items-center mb-2.5">
               <span className="text-xs text-[var(--ink-soft)] mr-1">กรองด้วย:</span>
               {activeTags.map((t) => (
                 <span key={t} className="chip-filter chip-filter-active chip-filter-sm">
@@ -392,10 +435,10 @@ export default function SkillsView({ showToast }) {
             </div>
           )}
 
-          {/* Tag Cloud Selector */}
+          {/* Tag Cloud Selector (Horizontally scrollable on mobile) */}
           {allTags.length > 0 && (
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="flex items-center gap-1 text-xs text-[var(--ink-soft)] mr-0.5">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 flex-nowrap sm:flex-wrap">
+              <span className="flex items-center gap-1 text-xs text-[var(--ink-soft)] mr-0.5 shrink-0">
                 <Tag size={11} strokeWidth={2} /> แท็ก:
               </span>
               {visibleTags
@@ -404,18 +447,18 @@ export default function SkillsView({ showToast }) {
                   <button
                     key={t}
                     onClick={() => handleToggleTag(t)}
-                    className="chip-filter chip-filter-sm"
+                    className="chip-filter chip-filter-sm shrink-0"
                   >
                     #{t}
                   </button>
                 ))}
               {hiddenTagCount > 0 && (
-                <button className="chip-filter chip-filter-sm" onClick={() => setTagsExpanded(true)}>
+                <button className="chip-filter chip-filter-sm shrink-0" onClick={() => setTagsExpanded(true)}>
                   +{hiddenTagCount} เพิ่มเติม
                 </button>
               )}
               {tagsExpanded && allTags.length > TAG_PREVIEW_COUNT && (
-                <button className="chip-filter chip-filter-sm" onClick={() => setTagsExpanded(false)}>
+                <button className="chip-filter chip-filter-sm shrink-0" onClick={() => setTagsExpanded(false)}>
                   ย่อกลับ
                 </button>
               )}
@@ -424,11 +467,11 @@ export default function SkillsView({ showToast }) {
 
           {/* Active filters status & clear */}
           {hasActiveFilters && (
-            <div className="flex items-center justify-between mt-3 pt-2 text-xs">
-              <span className="text-[var(--ink-soft)]">
+            <div className="flex items-center justify-between mt-2.5 pt-2 text-xs">
+              <span className="text-[var(--ink-soft)] truncate">
                 แสดง {filteredSkills.length} จากทั้งหมด {skillsRaw.length} สกิล
               </span>
-              <button className="btn-text-clear font-medium" onClick={clearAllFilters}>
+              <button className="btn-text-clear font-medium shrink-0 ml-2" onClick={clearAllFilters}>
                 ล้างตัวกรองทั้งหมด ✕
               </button>
             </div>
@@ -458,7 +501,7 @@ export default function SkillsView({ showToast }) {
         <EmptyState filtered onClearFilters={clearAllFilters} />
       )}
 
-      {/* Skills Card Grid — Matching PromptCard in every detail */}
+      {/* Skills Card Grid */}
       {filteredSkills.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredSkills.map((s, i) => (
@@ -467,24 +510,33 @@ export default function SkillsView({ showToast }) {
               className={`idx-card${s.is_pinned ? ' pinned' : ''}`}
               style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
             >
-              {/* Top row: Category tag + Desktop quick action icons (Preview, Pin, Star) */}
+              {/* Top row: Category tag + AI Tool badge + Desktop quick action icons */}
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: 'var(--accent)' }}
-                    title={s.category || 'สกิล'}
-                  />
+                  {s.ai_tool_meta ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full text-white shadow-xs shrink-0"
+                      style={{ backgroundColor: s.ai_tool_meta.color }}
+                      title={`ใช้งานกับ ${s.ai_tool_meta.name}`}
+                    >
+                      <span>{s.ai_tool_meta.icon || '🤖'}</span>
+                      <span className="truncate max-w-[100px]">{s.ai_tool_meta.name}</span>
+                    </span>
+                  ) : null}
+
                   {s.category && (
-                    <span className="text-[11px] text-[var(--ink-soft)] truncate font-medium">{s.category}</span>
+                    <span className="text-[11px] text-[var(--ink-soft)] truncate font-medium">
+                      {s.category}
+                    </span>
                   )}
-                  {(s.tags ?? []).slice(0, 2).map((t) => (
+
+                  {s.clean_tags.slice(0, 2).map((t) => (
                     <span key={t} className="tag !my-0">
                       #{t}
                     </span>
                   ))}
-                  {(s.tags ?? []).length > 2 && (
-                    <span className="text-[10.5px] text-[var(--ink-soft)]">+{(s.tags ?? []).length - 2}</span>
+                  {s.clean_tags.length > 2 && (
+                    <span className="text-[10.5px] text-[var(--ink-soft)]">+{s.clean_tags.length - 2}</span>
                   )}
                 </div>
 
@@ -520,10 +572,10 @@ export default function SkillsView({ showToast }) {
 
               {/* Meta footer: Last updated */}
               <div className="card-meta">
-                <span className="font-mono text-[11px] text-[var(--ink-soft)]">
-                  {s.category ? `หมวด ${s.category}` : 'สกิลทั่วไป'}
+                <span className="font-mono text-[11px] text-[var(--ink-soft)] truncate">
+                  {s.ai_tool ? `${s.ai_tool}` : s.category ? `หมวด ${s.category}` : 'สกิลทั่วไป'}
                 </span>
-                <span>แก้ไข {formatRelative(s.updated_at)}</span>
+                <span className="shrink-0">แก้ไข {formatRelative(s.updated_at)}</span>
               </div>
 
               {/* Desktop action row: คัดลอก + แก้ไข + ลบ */}
@@ -534,7 +586,7 @@ export default function SkillsView({ showToast }) {
                 <button className="btn btn-sm flex-1" onClick={() => openEdit(s)}>
                   <Pencil size={13} strokeWidth={1.8} /> แก้ไข
                 </button>
-                <button className="btn-icon" title="ลบ" onClick={() => setDeleteTarget(s)}>
+                <button className="btn-icon" title="ย้ายไปถังขยะ" onClick={() => setDeleteTarget(s)}>
                   <Trash2 size={13} strokeWidth={1.8} />
                 </button>
               </div>
@@ -593,7 +645,7 @@ export default function SkillsView({ showToast }) {
               },
             },
             {
-              label: 'ลบ',
+              label: 'ย้ายไปถังขยะ',
               icon: Trash2,
               destructive: true,
               onClick: () => {
@@ -638,9 +690,9 @@ export default function SkillsView({ showToast }) {
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="ลบสกิลนี้?"
-        description={deleteTarget ? `"${deleteTarget.title}" จะถูกลบทันที` : ''}
-        confirmLabel="ลบ"
+        title="ย้ายสกิลไปถังขยะ?"
+        description={deleteTarget ? `"${deleteTarget.title}" จะถูกย้ายไปที่ถังขยะ (กู้คืนได้ทุกเมื่อ)` : ''}
+        confirmLabel="ย้ายไปถังขยะ"
         danger
         busy={deleteSkill.isPending}
         onConfirm={handleConfirmDelete}

@@ -91,7 +91,6 @@ export default function App() {
     filters.quick !== null ||
     filters.status !== null
 
-  if (!isSupabaseConfigured) return <ConfigNotice />
 
   function openAddForm() {
     setEditingPrompt(null)
@@ -208,12 +207,14 @@ export default function App() {
     showToast(`กู้คืนเป็น v${version} แล้ว`)
   }
 
+  if (!isSupabaseConfigured) return <ConfigNotice />
+
   return (
     <div className="app-shell">
       <Sidebar activeKey={view} onSelect={setView} />
 
       <div className="main-content">
-        <div className="wrap max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        <div className="wrap max-w-5xl mx-auto px-3.5 sm:px-6 py-3.5 sm:py-10">
           {view === 'settings' && <SettingsView showToast={showToast} theme={theme} onThemeChange={setTheme} />}
           {view === 'trash' && <TrashView showToast={showToast} />}
           {view === 'dashboard' && <DashboardView prompts={prompts} categories={categoriesQuery.data} />}

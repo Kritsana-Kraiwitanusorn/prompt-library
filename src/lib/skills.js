@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { combineTagsWithAiTool, extractAiToolFromSkill } from './aiTools'
 
 export async function fetchSkills() {
   const { data, error } = await supabase
@@ -11,10 +12,22 @@ export async function fetchSkills() {
   return data
 }
 
-export async function createSkill({ title, content, category, tags = [] }) {
+export async function fetchDeletedSkills() {
   const { data, error } = await supabase
     .from('skills')
-    .insert({ title, content, category: category || null, tags })
+    .select('*')
+    .eq('is_deleted', true)
+    .order('updated_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export async function createSkill({ title, content, category, tags = [], ai_tool = null }) {
+  const finalTags = combineTagsWithAiTool(tags, ai_tool)
+  const { data, error } = await supabase
+    .from('skills')
+    .insert({ title, content, category: category || null, tags: finalTags })
     .select()
     .single()
 
@@ -23,14 +36,31 @@ export async function createSkill({ title, content, category, tags = [] }) {
 }
 
 export async function updateSkill(id, fields) {
-  const { data, error } = await supabase.from('skills').update(fields).eq('id', id).select().single()
+  const payload = { ...fields }
+  if ('tags' in fields || 'ai_tool' in fields) {
+    const existingTags = fields.tags ?? []
+    payload.tags = combineTagsWithAiTool(existingTags, fields.ai_tool)
+    delete payload.ai_tool
+  }
+  const { data, error } = await supabase.from('skills').update(payload).eq('id', id).select().single()
   if (error) throw error
   return data
 }
 
-// Skills don't have a Trash view of their own — deleting is immediate and permanent,
-// behind a confirm dialog in the UI.
+// Soft delete moves the skill to Trash so it can be recovered
 export async function deleteSkill(id) {
+  const { data, error } = await supabase.from('skills').update({ is_deleted: true }).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function restoreSkill(id) {
+  const { data, error } = await supabase.from('skills').update({ is_deleted: false }).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function hardDeleteSkill(id) {
   const { error } = await supabase.from('skills').delete().eq('id', id)
   if (error) throw error
 }
@@ -45,6 +75,7 @@ export async function exportSkillsAsJson() {
       content: s.content,
       tags: s.tags ?? [],
       category: s.category ?? null,
+      ai_tool: extractAiToolFromSkill(s),
     })),
   }
   return JSON.stringify(payload, null, 2)
@@ -58,7 +89,7 @@ export async function importSkillsFromJson(json) {
   const rows = incoming.map((item) => ({
     title: item.title,
     content: item.content,
-    tags: item.tags ?? [],
+    tags: combineTagsWithAiTool(item.tags ?? [], item.ai_tool),
     category: item.category ?? null,
   }))
 
